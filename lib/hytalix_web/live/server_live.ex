@@ -18,7 +18,7 @@ defmodule HytalixWeb.ServerLive do
     log_items =
       logs
       |> Enum.reverse()
-      |> Enum.with_index(fn text, idx -> %{id: idx, text: text} end)
+      |> Enum.with_index(fn text, idx -> %{id: idx, html: parse_ansi(text)} end)
 
     socket =
       socket
@@ -30,7 +30,7 @@ defmodule HytalixWeb.ServerLive do
 
   def handle_info({:new_log, text}, socket) do
     log_id = System.unique_integer([:positive])
-    {:noreply, stream_insert(socket, :logs, %{id: log_id, text: text})}
+    {:noreply, stream_insert(socket, :logs, %{id: log_id, html: parse_ansi(text)})}
   end
 
   def handle_info({:server_stopped, id}, socket) do
@@ -58,6 +58,45 @@ defmodule HytalixWeb.ServerLive do
     Manager.stop_server(socket.assigns.id)
     {:noreply, socket}
   end
+
+  # ANSI color code to CSS class mapping
+  # Map ANSI color codes to CSS classes
+  @ansi_colors %{
+    # Standard colors
+    "30" => "text-base-content/60",
+    "31" => "text-error",
+    "32" => "text-success",
+    "33" => "text-warning",
+    "34" => "text-info",
+    "35" => "text-secondary",
+    "36" => "text-accent",
+    "37" => "text-base-content",
+    # With reset prefix (0;XX)
+    "0;31" => "text-error",
+    "0;32" => "text-success",
+    "0;33" => "text-warning",
+    "0;34" => "text-info",
+    # Bold (1;XX)
+    "1;31" => "text-error font-bold",
+    "1;32" => "text-success font-bold",
+    "1;33" => "text-warning font-bold"
+  }
+
+  defp parse_ansi(text) when is_binary(text) do
+    # Match both \e[XXm (real ANSI) and [XXm (stripped escape from Hytale logs)
+    text
+    |> then(&Regex.replace(~r/(?:\x1b)?\[([0-9;]*)m/, &1, fn _full, codes ->
+      cond do
+        codes == "" or codes == "0" -> "</span>"
+        class = Map.get(@ansi_colors, codes) -> ~s(<span class="#{class}">)
+        true -> ""
+      end
+    end))
+    |> String.trim()
+    |> Phoenix.HTML.raw()
+  end
+
+  defp parse_ansi(text), do: text
 
   def render(assigns) do
     ~H"""
@@ -91,33 +130,47 @@ defmodule HytalixWeb.ServerLive do
         <% end %>
       </div>
 
-      <div class="bg-base-300 rounded-box overflow-hidden">
-        <div class="bg-base-200 px-4 py-2 border-b border-base-300 flex items-center gap-2">
-          <.icon name="hero-command-line" class="size-4 opacity-60" />
-          <span class="text-sm font-medium opacity-60">Console</span>
+      <div class="bg-base-200 rounded-box overflow-hidden border border-base-300">
+        <div class="bg-base-300 px-4 py-2 border-b border-base-300 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <.icon name="hero-command-line" class="size-4 opacity-60" />
+            <span class="text-sm font-medium opacity-60">Console</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs opacity-50">
+            <span class="badge badge-xs">Port {@server.port}</span>
+            <span class="badge badge-xs">{@server.memory_max_mb}MB</span>
+          </div>
         </div>
 
         <div
           id="logs"
           phx-update="stream"
-          class="h-96 overflow-y-auto p-4 font-mono text-sm bg-black text-green-400 space-y-0.5"
+          phx-hook="ScrollToBottom"
+          class="h-[42rem] overflow-y-auto p-4 font-mono text-xs leading-relaxed bg-base-100 text-base-content space-y-0.5"
         >
-          <p :for={{dom_id, log} <- @streams.logs} id={dom_id} class="whitespace-pre-wrap">
-            {log.text}
+          <div class="hidden only:flex items-center justify-center h-full opacity-50">
+            <p>Waiting for logs...</p>
+          </div>
+          <p
+            :for={{dom_id, log} <- @streams.logs}
+            id={dom_id}
+            class="whitespace-pre-wrap hover:bg-base-200 px-1 -mx-1 rounded transition-colors"
+          >
+            {log.html}
           </p>
         </div>
 
         <%= if @running? do %>
-          <form phx-submit="send_command" class="border-t border-base-300 flex">
-            <span class="px-4 py-3 text-green-400 font-mono bg-black">&gt;</span>
+          <form phx-submit="send_command" class="border-t border-base-300 flex bg-base-200">
+            <span class="px-4 py-3 text-primary font-mono font-bold">&gt;</span>
             <input
               type="text"
               name="command"
               placeholder="Enter command..."
               autocomplete="off"
-              class="flex-1 px-2 py-3 bg-black text-green-400 font-mono focus:outline-none"
+              class="flex-1 px-2 py-3 bg-transparent font-mono focus:outline-none placeholder:opacity-40"
             />
-            <button type="submit" class="px-4 py-3 bg-base-200 hover:bg-base-300 transition-colors">
+            <button type="submit" class="px-4 py-3 hover:bg-base-300 transition-colors">
               <.icon name="hero-paper-airplane" class="size-4" />
             </button>
           </form>
