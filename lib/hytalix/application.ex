@@ -12,9 +12,7 @@ defmodule Hytalix.Application do
       Hytalix.Repo,
       {DNSCluster, query: Application.get_env(:hytalix, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Hytalix.PubSub},
-      # Start a worker by calling: Hytalix.Worker.start_link(arg)
-      # {Hytalix.Worker, arg},
-      # Start to serve requests, typically the last entry
+      {DynamicSupervisor, strategy: :one_for_one, name: Hytalix.ServerSupervisor},
       HytalixWeb.Endpoint
     ]
 
