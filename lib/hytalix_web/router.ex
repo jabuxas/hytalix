@@ -17,7 +17,7 @@ defmodule HytalixWeb.Router do
   scope "/", HytalixWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", DashboardLive
     live "/server/:id", ServerLive
   end
 

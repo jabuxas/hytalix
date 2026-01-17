@@ -12,6 +12,7 @@ defmodule Hytalix.Application do
       Hytalix.Repo,
       {DNSCluster, query: Application.get_env(:hytalix, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Hytalix.PubSub},
+      {Registry, keys: :unique, name: Hytalix.ServerRegistry},
       {DynamicSupervisor, strategy: :one_for_one, name: Hytalix.ServerSupervisor},
       HytalixWeb.Endpoint
     ]

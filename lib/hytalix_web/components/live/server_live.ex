@@ -12,7 +12,7 @@ defmodule HytalixWeb.ServerLive do
 
   def render(assigns) do
     ~H"""
-    <div class="p-4 bg-black text-green-400 font-mono h-96 overflow-y-scroll">
+    <div class="p-4 bg-black text-green-400 font-mono">
       <h2>monitoring hytale server: {@id}</h2>
       <div id="logs">
         <%= for log <- Enum.reverse(@logs) do %>
