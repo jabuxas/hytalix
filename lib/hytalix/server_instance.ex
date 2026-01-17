@@ -1,5 +1,5 @@
 defmodule Hytalix.ServerInstance do
-  use GenServer
+  use GenServer, restart: :temporary
   require Logger
 
   def via_tuple(id), do: {:via, Registry, {Hytalix.ServerRegistry, id}}
@@ -11,46 +11,72 @@ defmodule Hytalix.ServerInstance do
   def stop(id) do
     case Registry.lookup(Hytalix.ServerRegistry, id) do
       [{pid, _}] -> GenServer.cast(pid, :stop_gracefully)
-      [] -> :error
+      [] -> {:error, :not_found}
+    end
+  end
+
+  def get_logs(id) do
+    case Registry.lookup(Hytalix.ServerRegistry, id) do
+      [{pid, _}] -> GenServer.call(pid, :get_logs)
+      [] -> []
     end
   end
 
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
+
     Phoenix.PubSub.broadcast(Hytalix.PubSub, "manager", {:server_started, opts[:id]})
-    # port = Port.open({:spawn, "java -Xmx1G -jar hytale_server.jar"}, [:binary, :exit_status])
-    port = Port.open({:spawn, "./mock_server.sh"}, [:binary, :exit_status])
+
+    port = Port.open({:spawn, "./mock_server.sh"}, [:binary, :exit_status, :use_stdio])
+
     {:ok, %{port: port, id: opts[:id], logs: []}}
   end
 
   @impl true
-  def terminate(_reason, state) do
-    Phoenix.PubSub.broadcast(Hytalix.PubSub, "manager", {:server_stopped, state.id})
-    :ok
+  def handle_call(:get_logs, _from, state) do
+    {:reply, state.logs, state}
+  end
+
+  @impl true
+  def handle_cast(:stop_gracefully, state) do
+    Logger.info("Stopping server: #{state.id}")
+    Port.command(state.port, "stop\n")
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast(msg, state) do
+    Logger.warning("Unexpected cast received: #{inspect(msg)}")
+    {:noreply, state}
   end
 
   @impl true
   def handle_info({_port, {:data, text}}, state) do
     Phoenix.PubSub.broadcast(Hytalix.PubSub, "server:#{state.id}", {:new_log, text})
-    {:noreply, state}
+    new_logs = [text | state.logs] |> Enum.take(100)
+    {:noreply, %{state | logs: new_logs}}
   end
 
   @impl true
   def handle_info({_port, {:exit_status, status}}, state) do
-    Logger.error("hytale server #{state.id} stopped with status :#{status}")
+    Logger.warning("Hytale process #{state.id} exited with status: #{status}")
     {:stop, :normal, state}
   end
 
-  def send_command(id, command) do
-    if pid = :global.whereis_name(id) do
-      GenServer.cast(pid, {:command, command})
-    end
+  @impl true
+  def handle_info({:EXIT, _port, _reason}, state) do
+    {:stop, :normal, state}
   end
 
   @impl true
-  def handle_cast({:command, cmd}, state) do
-    Port.command(state.port, "#{cmd}\n")
-    {:noreply, state}
+  def terminate(_reason, state) do
+    Phoenix.PubSub.broadcast(Hytalix.PubSub, "manager", {:server_stopped, state.id})
+
+    if state.port && Port.info(state.port) do
+      Port.close(state.port)
+    end
+
+    :ok
   end
 end

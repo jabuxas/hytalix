@@ -1,15 +1,23 @@
 #!/bin/bash
-
 echo "[System] Starting Hytale Server..."
-sleep 1
-echo "[System] Loading World: Orbis..."
-sleep 1
-echo "[System] Server started on port 25565"
 
-# Loop forever to simulate a running game
-while true; do
-  echo "[$(date +%T)] Info: Player 'Kweebec' joined the game"
-  sleep 3
-  echo "[$(date +%T)] Info: Saving world..."
-  sleep 5
+(
+  while true; do
+    echo "[$(date +%T)] Info: Player 'Kweebec' is wandering Orbis"
+    sleep 5
+  done
+) &
+LOG_PID=$!
+
+while read -r line; do
+  if [ "$line" == "stop" ]; then
+    echo "[System] Stopping gracefully..."
+    kill $LOG_PID
+    exit 0
+  fi
+  echo "[Console] Received: $line"
 done
+
+echo "[System] Connection lost. Shutting down..."
+kill $LOG_PID
+exit 0
