@@ -8,15 +8,20 @@ defmodule Hytalix.Servers.Instance do
   use GenServer, restart: :temporary
   require Logger
 
+  alias Hytalix.Servers.Server
+
   @max_log_lines 100
 
   def via_tuple(id), do: {:via, Registry, {Hytalix.ServerRegistry, id}}
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: via_tuple(opts[:id]))
+    server = opts[:server]
+    GenServer.start_link(__MODULE__, server, name: via_tuple(server.id))
   end
 
   def stop(id) do
+    id = normalize_id(id)
+
     case Registry.lookup(Hytalix.ServerRegistry, id) do
       [{pid, _}] -> GenServer.cast(pid, :stop_gracefully)
       [] -> {:error, :not_found}
@@ -24,6 +29,8 @@ defmodule Hytalix.Servers.Instance do
   end
 
   def send_command(id, command) do
+    id = normalize_id(id)
+
     case Registry.lookup(Hytalix.ServerRegistry, id) do
       [{pid, _}] -> GenServer.cast(pid, {:send_command, command})
       [] -> {:error, :not_found}
@@ -31,21 +38,50 @@ defmodule Hytalix.Servers.Instance do
   end
 
   def get_logs(id) do
+    id = normalize_id(id)
+
     case Registry.lookup(Hytalix.ServerRegistry, id) do
       [{pid, _}] -> GenServer.call(pid, :get_logs)
       [] -> []
     end
   end
 
+  defp normalize_id(id) when is_binary(id), do: String.to_integer(id)
+  defp normalize_id(id), do: id
+
   @impl true
-  def init(opts) do
+  def init(%Server{} = server) do
     Process.flag(:trap_exit, true)
 
-    Phoenix.PubSub.broadcast(Hytalix.PubSub, "servers", {:server_started, opts[:id]})
+    Phoenix.PubSub.broadcast(Hytalix.PubSub, "servers", {:server_started, server.id})
 
-    port = Port.open({:spawn, "./mock_server.sh"}, [:binary, :exit_status, :use_stdio])
+    command = build_command(server)
+    Logger.info("Starting server #{server.name} (#{server.id}): #{command}")
 
-    {:ok, %{port: port, id: opts[:id], logs: []}}
+    port =
+      Port.open({:spawn, command}, [
+        :binary,
+        :exit_status,
+        :use_stdio,
+        :stderr_to_stdout,
+        {:cd, Path.dirname(server.server_jar_path)}
+      ])
+
+    {:ok,
+     %{
+       port: port,
+       id: server.id,
+       name: server.name,
+       logs: []
+     }}
+  end
+
+  defp build_command(%Server{} = server) do
+    if String.ends_with?(server.server_jar_path, "mock_server.sh") do
+      server.server_jar_path
+    else
+      Server.build_command(server)
+    end
   end
 
   @impl true
@@ -55,7 +91,7 @@ defmodule Hytalix.Servers.Instance do
 
   @impl true
   def handle_cast(:stop_gracefully, state) do
-    Logger.info("Stopping server: #{state.id}")
+    Logger.info("Stopping server: #{state.name} (#{state.id})")
     Port.command(state.port, "stop\n")
     {:noreply, state}
   end
@@ -75,7 +111,7 @@ defmodule Hytalix.Servers.Instance do
 
   @impl true
   def handle_info({_port, {:exit_status, status}}, state) do
-    Logger.warning("Hytale process #{state.id} exited with status: #{status}")
+    Logger.warning("Hytale process #{state.name} (#{state.id}) exited with status: #{status}")
     {:stop, :normal, state}
   end
 

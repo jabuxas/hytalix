@@ -4,6 +4,9 @@ defmodule HytalixWeb.ServerLive do
   alias Hytalix.Servers.Manager
 
   def mount(%{"id" => id}, _session, socket) do
+    id = String.to_integer(id)
+    server = Manager.get_server!(id)
+
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Hytalix.PubSub, "server:#{id}")
       Phoenix.PubSub.subscribe(Hytalix.PubSub, "servers")
@@ -19,15 +22,15 @@ defmodule HytalixWeb.ServerLive do
 
     socket =
       socket
-      |> assign(id: id, running?: running?)
+      |> assign(id: id, server: server, running?: running?)
       |> stream(:logs, log_items)
 
     {:ok, socket}
   end
 
   def handle_info({:new_log, text}, socket) do
-    id = System.unique_integer([:positive])
-    {:noreply, stream_insert(socket, :logs, %{id: id, text: text})}
+    log_id = System.unique_integer([:positive])
+    {:noreply, stream_insert(socket, :logs, %{id: log_id, text: text})}
   end
 
   def handle_info({:server_stopped, id}, socket) do
@@ -64,7 +67,7 @@ defmodule HytalixWeb.ServerLive do
           <.link navigate={~p"/"} class="btn btn-ghost btn-sm">
             <.icon name="hero-arrow-left" class="size-4" /> Back
           </.link>
-          <h1 class="text-2xl font-bold">{@id}</h1>
+          <h1 class="text-2xl font-bold">{@server.name}</h1>
           <div class="flex items-center gap-2">
             <%= if @running? do %>
               <span class="badge badge-success gap-1">
@@ -99,7 +102,9 @@ defmodule HytalixWeb.ServerLive do
           phx-update="stream"
           class="h-96 overflow-y-auto p-4 font-mono text-sm bg-black text-green-400 space-y-0.5"
         >
-          <p :for={{dom_id, log} <- @streams.logs} id={dom_id} class="whitespace-pre-wrap">{log.text}</p>
+          <p :for={{dom_id, log} <- @streams.logs} id={dom_id} class="whitespace-pre-wrap">
+            {log.text}
+          </p>
         </div>
 
         <%= if @running? do %>

@@ -32,6 +32,62 @@ defmodule HytalixWeb.CoreComponents do
   alias Phoenix.LiveView.JS
 
   @doc """
+  Renders a modal dialog.
+
+  ## Examples
+
+      <.modal id="confirm-modal">
+        Are you sure?
+        <:actions>
+          <.button phx-click="cancel">Cancel</.button>
+          <.button phx-click="confirm">OK</.button>
+        </:actions>
+      </.modal>
+
+  JS commands may be passed to the `:on_cancel` attribute for the caller
+  to react to the modal being closed.
+  """
+  attr :id, :string, required: true
+  attr :show, :boolean, default: false
+  attr :on_cancel, JS, default: %JS{}
+  slot :inner_block, required: true
+
+  def modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      phx-mounted={@show && show_modal(@id)}
+      phx-remove={hide_modal(@id)}
+      class="modal modal-open"
+    >
+      <div class="modal-box relative">
+        <button
+          phx-click={JS.exec(@on_cancel, "phx-remove")}
+          type="button"
+          class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+          aria-label={gettext("close")}
+        >
+          <.icon name="hero-x-mark" class="size-5" />
+        </button>
+        {render_slot(@inner_block)}
+      </div>
+      <div class="modal-backdrop" phx-click={JS.exec(@on_cancel, "phx-remove")}></div>
+    </div>
+    """
+  end
+
+  defp show_modal(js \\ %JS{}, id) do
+    JS.show(js, to: "##{id}")
+  end
+
+  defp hide_modal(js \\ %JS{}, id) do
+    JS.hide(js,
+      to: "##{id}",
+      transition: {"transition-opacity duration-200", "opacity-100", "opacity-0"}
+    )
+  end
+
+  @doc """
   Renders flash notices.
 
   ## Examples
