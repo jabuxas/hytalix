@@ -6,11 +6,30 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: hytalix_dev
+      # POSTGRES_DB: hytalix_dev
+      POSTGRES_DB: hytalix_prod
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  # docker exec -it hytalix_app /app/bin/hytalix eval "Hytalix.Release.migrate"
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: hytalix_app
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=ecto://postgres:postgres@db/hytalix_prod
+      - SECRET_KEY_BASE=JfvgUDrb+P8Ow9NVlaadpj+YWL7pCJWZg+5TLY8M/O7G6OpEX6VXO2QJ5XlWsgr3
+      - PHX_HOST=localhost
+      - PHX_SERVER=true
+      - PORT=4000
+    restart: on-failure
 
 volumes:
   postgres_data:

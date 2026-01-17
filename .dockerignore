@@ -1,0 +1,7 @@
+/_build
+/deps
+/.git
+/priv/static/assets
+/assets/node_modules
+.env
+docker-compose.yml
