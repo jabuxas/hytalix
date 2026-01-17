@@ -1,37 +1,31 @@
 defmodule HytalixWeb.DashboardLive do
   use HytalixWeb, :live_view
 
-  def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Hytalix.PubSub, "manager")
+  alias Hytalix.Servers.Manager
 
-    {:ok, assign(socket, servers: list_active_servers())}
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: Phoenix.PubSub.subscribe(Hytalix.PubSub, "servers")
+
+    {:ok, assign(socket, servers: Manager.list_servers())}
   end
 
-  @spec handle_info({:server_started, any()} | {:server_stopped, any()}, any()) ::
-          {:noreply, any()}
-
-  def handle_info({:server_started, id}, socket) do
-    IO.puts("DEBUG: Received server_started for #{id}")
-    {:noreply, assign(socket, servers: list_active_servers())}
+  def handle_info({:server_started, _id}, socket) do
+    {:noreply, assign(socket, servers: Manager.list_servers())}
   end
 
   def handle_info({:server_stopped, _id}, socket) do
-    {:noreply, assign(socket, servers: list_active_servers())}
+    {:noreply, assign(socket, servers: Manager.list_servers())}
   end
 
   def handle_event("create_test_server", _params, socket) do
     id = "server_#{:rand.uniform(1000)}"
-    DynamicSupervisor.start_child(Hytalix.ServerSupervisor, {Hytalix.ServerInstance, id: id})
+    Manager.start_server(id)
     {:noreply, socket}
   end
 
   def handle_event("stop_server", %{"id" => id}, socket) do
-    Hytalix.ServerInstance.stop(id)
+    Manager.stop_server(id)
     {:noreply, socket}
-  end
-
-  defp list_active_servers() do
-    Registry.select(Hytalix.ServerRegistry, [{{:"$1", :_, :_}, [], [:"$1"]}])
   end
 
   def render(assigns) do
