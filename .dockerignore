@@ -2,6 +2,7 @@
 /deps
 /.git
 /priv/static/assets
+/priv/servers
 /assets/node_modules
 .env
 docker-compose.yml

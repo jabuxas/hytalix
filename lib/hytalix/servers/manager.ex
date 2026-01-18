@@ -153,7 +153,8 @@ defmodule Hytalix.Servers.Manager do
   Returns the default download directory for a server.
   """
   def default_download_dir(server_id) do
-    Path.join([Application.app_dir(:hytalix, "priv"), "servers", "server_#{server_id}"])
+    base_dir = System.get_env("HYTALIX_DATA_DIR") || Application.app_dir(:hytalix, "priv")
+    Path.join([base_dir, "servers", "server_#{server_id}"])
   end
 
   @doc """
