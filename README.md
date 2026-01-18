@@ -1,18 +1,61 @@
 # Hytalix
 
-To start your Phoenix server:
+A web-based Hytale dedicated server manager built with Phoenix LiveView.
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## Features
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+- Create and manage multiple Hytale server instances
+- Real-time console with ANSI color support
+- Automatic server file downloads via OAuth
+- Configurable server options (memory, ports, auth mode, backups, etc.)
+- Start/stop servers with live status updates
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+## Development
 
-## Learn more
+### Requirements
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+- Elixir 1.19+
+- PostgreSQL 16+
+- Java 25 (for running Hytale servers)
+
+```bash
+# Install dependencies
+mix setup
+
+# Start the server
+iex -S mix phx.server
+```
+
+Visit [localhost:4000](http://localhost:4000)
+
+## Production (Docker)
+
+```bash
+docker compose up --build
+```
+
+This will:
+- Start PostgreSQL
+- Run database migrations automatically
+- Start the application on port 4000
+
+Server files are persisted in a Docker volume.
+
+## Configuration
+
+Server configurations are stored in the database. Each server can be configured with:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `port` | 5520 | Server port (UDP/QUIC) |
+| `memory_min_mb` | 1024 | Minimum heap size |
+| `memory_max_mb` | 4096 | Maximum heap size |
+| `auth_mode` | authenticated | `authenticated` or `offline` |
+| `view_distance` | 12 | Chunk view distance |
+| `use_aot_cache` | true | Use AOT cache for faster startup |
+| `disable_sentry` | false | Disable crash reporting |
+| `backup_enabled` | false | Enable automatic backups |
+
+## License
+
+MIT
