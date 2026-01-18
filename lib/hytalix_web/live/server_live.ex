@@ -59,10 +59,7 @@ defmodule HytalixWeb.ServerLive do
     {:noreply, socket}
   end
 
-  # ANSI color code to CSS class mapping
-  # Map ANSI color codes to CSS classes
   @ansi_colors %{
-    # Standard colors
     "30" => "text-base-content/60",
     "31" => "text-error",
     "32" => "text-success",
@@ -71,27 +68,26 @@ defmodule HytalixWeb.ServerLive do
     "35" => "text-secondary",
     "36" => "text-accent",
     "37" => "text-base-content",
-    # With reset prefix (0;XX)
     "0;31" => "text-error",
     "0;32" => "text-success",
     "0;33" => "text-warning",
     "0;34" => "text-info",
-    # Bold (1;XX)
     "1;31" => "text-error font-bold",
     "1;32" => "text-success font-bold",
     "1;33" => "text-warning font-bold"
   }
 
   defp parse_ansi(text) when is_binary(text) do
-    # Match both \e[XXm (real ANSI) and [XXm (stripped escape from Hytale logs)
     text
-    |> then(&Regex.replace(~r/(?:\x1b)?\[([0-9;]*)m/, &1, fn _full, codes ->
-      cond do
-        codes == "" or codes == "0" -> "</span>"
-        class = Map.get(@ansi_colors, codes) -> ~s(<span class="#{class}">)
-        true -> ""
-      end
-    end))
+    |> then(
+      &Regex.replace(~r/(?:\x1b)?\[([0-9;]*)m/, &1, fn _full, codes ->
+        cond do
+          codes == "" or codes == "0" -> "</span>"
+          class = Map.get(@ansi_colors, codes) -> ~s(<span class="#{class}">)
+          true -> ""
+        end
+      end)
+    )
     |> String.trim()
     |> Phoenix.HTML.raw()
   end

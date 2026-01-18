@@ -304,7 +304,8 @@ defmodule HytalixWeb.DashboardLive do
               <p>Memory: {server.memory_min_mb}MB - {server.memory_max_mb}MB</p>
               <%= unless has_server_files?(server) do %>
                 <p class="text-warning mt-1">
-                  <.icon name="hero-exclamation-triangle" class="size-3 inline" /> Server files not configured
+                  <.icon name="hero-exclamation-triangle" class="size-3 inline" />
+                  Server files not configured
                 </p>
               <% end %>
             </div>
@@ -365,13 +366,14 @@ defmodule HytalixWeb.DashboardLive do
                   <span class="loading loading-spinner loading-md"></span>
                   <p>Downloading tools...</p>
                 </div>
-
               <% :awaiting_auth -> %>
                 <div class="alert alert-info">
                   <.icon name="hero-key" class="size-6" />
                   <div>
                     <h4 class="font-bold">Authentication Required</h4>
-                    <p class="text-sm">Click the button below to authenticate with your Hytale account.</p>
+                    <p class="text-sm">
+                      Click the button below to authenticate with your Hytale account.
+                    </p>
                   </div>
                 </div>
 
@@ -389,7 +391,6 @@ defmodule HytalixWeb.DashboardLive do
                     After authenticating, the download will start automatically.
                   </p>
                 <% end %>
-
               <% :downloading -> %>
                 <div class="space-y-2">
                   <div class="flex justify-between text-sm">
@@ -403,19 +404,16 @@ defmodule HytalixWeb.DashboardLive do
                   >
                   </progress>
                 </div>
-
               <% :extracting -> %>
                 <div class="flex items-center gap-3">
                   <span class="loading loading-spinner loading-md"></span>
                   <p>Extracting files...</p>
                 </div>
-
               <% :error -> %>
                 <div class="alert alert-error">
                   <.icon name="hero-x-circle" class="size-6" />
                   <span>Download failed. Check the logs for details.</span>
                 </div>
-
               <% _ -> %>
                 <div class="flex items-center gap-3">
                   <span class="loading loading-spinner loading-md"></span>
@@ -436,7 +434,7 @@ defmodule HytalixWeb.DashboardLive do
       <%= if @show_modal do %>
         <.modal id="server-modal" show on_cancel={JS.push("close_modal")}>
           <h3 class="text-lg font-bold mb-4">
-            <%= if @editing_server, do: "Edit Server", else: "Create New Server" %>
+            {if @editing_server, do: "Edit Server", else: "Create New Server"}
           </h3>
           <.form
             for={@form}
@@ -508,7 +506,7 @@ defmodule HytalixWeb.DashboardLive do
             <div class="modal-action">
               <button type="button" phx-click="close_modal" class="btn btn-ghost">Cancel</button>
               <button type="submit" class="btn btn-primary">
-                <%= if @editing_server, do: "Save Changes", else: "Create Server" %>
+                {if @editing_server, do: "Save Changes", else: "Create Server"}
               </button>
             </div>
           </.form>

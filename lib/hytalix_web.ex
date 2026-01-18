@@ -40,8 +40,6 @@ defmodule HytalixWeb do
     quote do
       use Phoenix.Controller, formats: [:html, :json]
 
-      use Gettext, backend: HytalixWeb.Gettext
-
       import Plug.Conn
 
       unquote(verified_routes())
@@ -79,9 +77,6 @@ defmodule HytalixWeb do
 
   defp html_helpers do
     quote do
-      # Translation
-      use Gettext, backend: HytalixWeb.Gettext
-
       # HTML escaping functionality
       import Phoenix.HTML
       # Core UI components
