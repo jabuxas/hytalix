@@ -1,14 +1,19 @@
 # Hytalix
 
-A web-based Hytale dedicated server manager built with Phoenix LiveView.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Elixir](https://img.shields.io/badge/Elixir-1.19+-purple.svg)](https://elixir-lang.org/)
+[![Phoenix](https://img.shields.io/badge/Phoenix-1.8-orange.svg)](https://phoenixframework.org/)
+
+A web-based Hytale dedicated server manager built with Phoenix LiveView. Similar to [Crafty Controller](https://craftycontrol.com/) but for Hytale.
 
 ## Features
 
-- Create and manage multiple Hytale server instances
-- Real-time console with ANSI color support
-- Automatic server file downloads via OAuth
-- Configurable server options (memory, ports, auth mode, backups, etc.)
-- Start/stop servers with live status updates
+- 🎮 Create and manage multiple Hytale server instances
+- 📺 Real-time console with ANSI color support
+- ⬇️ Automatic server file downloads via OAuth
+- ⚙️ Configurable server options (memory, ports, auth mode, backups, etc.)
+- 🚀 Start/stop servers with live status updates
+- 🐳 Docker-ready with automatic migrations
 
 ## Development
 
@@ -19,10 +24,7 @@ A web-based Hytale dedicated server manager built with Phoenix LiveView.
 - Java 25 (for running Hytale servers)
 
 ```bash
-# Install dependencies
 mix setup
-
-# Start the server
 iex -S mix phx.server
 ```
 
@@ -34,16 +36,9 @@ Visit [localhost:4000](http://localhost:4000)
 docker compose up --build
 ```
 
-This will:
-- Start PostgreSQL
-- Run database migrations automatically
-- Start the application on port 4000
-
-Server files are persisted in a Docker volume.
+Migrations run automatically. Server files persist in a Docker volume.
 
 ## Configuration
-
-Server configurations are stored in the database. Each server can be configured with:
 
 | Option | Default | Description |
 |--------|---------|-------------|
