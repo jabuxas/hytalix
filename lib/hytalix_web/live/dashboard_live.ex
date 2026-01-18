@@ -13,7 +13,16 @@ defmodule HytalixWeb.DashboardLive do
       socket
       |> assign(running_ids: running_ids, servers_empty?: servers == [])
       |> stream(:servers, servers)
-      |> assign(show_modal: false, form: nil, editing_server: nil)
+      |> assign(
+        show_modal: false,
+        form: nil,
+        editing_server: nil,
+        # Download state
+        download_server_id: nil,
+        download_status: nil,
+        download_progress: nil,
+        download_auth_url: nil
+      )
 
     {:ok, socket}
   end
@@ -40,6 +49,59 @@ defmodule HytalixWeb.DashboardLive do
     {:noreply, socket}
   end
 
+  # Download-related messages
+  def handle_info({:auth_required, url}, socket) do
+    {:noreply, assign(socket, download_auth_url: url, download_status: :awaiting_auth)}
+  end
+
+  def handle_info({:download_progress, progress}, socket) do
+    {:noreply, assign(socket, download_progress: progress, download_status: :downloading)}
+  end
+
+  def handle_info({:download_status, status}, socket) do
+    {:noreply, assign(socket, download_status: status)}
+  end
+
+  def handle_info({:download_complete, paths}, socket) do
+    # Update the server with the downloaded paths
+    server_id = socket.assigns.download_server_id
+
+    if server_id do
+      server = Manager.get_server!(server_id)
+      java_path = Manager.detect_java_path() || ""
+
+      case Manager.update_server(server, Map.merge(paths, %{java_path: java_path})) do
+        {:ok, updated_server} ->
+          socket =
+            socket
+            |> stream_insert(:servers, updated_server)
+            |> assign(
+              download_server_id: nil,
+              download_status: nil,
+              download_progress: nil,
+              download_auth_url: nil
+            )
+            |> put_flash(:info, "Server files downloaded! Paths configured automatically.")
+
+          {:noreply, socket}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to update server with downloaded paths")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:download_error, reason}, socket) do
+    socket =
+      socket
+      |> assign(download_status: :error, download_auth_url: nil)
+      |> put_flash(:error, "Download failed: #{reason}")
+
+    {:noreply, socket}
+  end
+
   def handle_event("new_server", _params, socket) do
     changeset = Manager.change_server(%Server{})
     {:noreply, assign(socket, show_modal: true, form: to_form(changeset), editing_server: nil)}
@@ -53,6 +115,16 @@ defmodule HytalixWeb.DashboardLive do
 
   def handle_event("close_modal", _params, socket) do
     {:noreply, assign(socket, show_modal: false, form: nil, editing_server: nil)}
+  end
+
+  def handle_event("close_download_modal", _params, socket) do
+    {:noreply,
+     assign(socket,
+       download_server_id: nil,
+       download_status: nil,
+       download_progress: nil,
+       download_auth_url: nil
+     )}
   end
 
   def handle_event("validate", %{"server" => params}, socket) do
@@ -102,6 +174,27 @@ defmodule HytalixWeb.DashboardLive do
     end
   end
 
+  def handle_event("download_files", %{"id" => id}, socket) do
+    server_id = String.to_integer(id)
+    download_dir = Manager.default_download_dir(server_id)
+
+    # Subscribe to download events for this server
+    Phoenix.PubSub.subscribe(Hytalix.PubSub, "download:#{server_id}")
+
+    case Manager.start_download(server_id, download_dir) do
+      {:ok, _pid} ->
+        socket =
+          socket
+          |> assign(download_server_id: server_id, download_status: :starting)
+          |> put_flash(:info, "Starting download...")
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to start download: #{inspect(reason)}")}
+    end
+  end
+
   def handle_event("start_server", %{"id" => id}, socket) do
     id = String.to_integer(id)
 
@@ -140,6 +233,11 @@ defmodule HytalixWeb.DashboardLive do
 
   defp running?(assigns, server) do
     MapSet.member?(assigns.running_ids, server.id)
+  end
+
+  defp has_server_files?(server) do
+    server.server_jar_path && server.assets_path &&
+      File.exists?(server.server_jar_path || "") && File.exists?(server.assets_path || "")
   end
 
   def render(assigns) do
@@ -204,6 +302,11 @@ defmodule HytalixWeb.DashboardLive do
 
             <div class="text-xs opacity-50 mt-2">
               <p>Memory: {server.memory_min_mb}MB - {server.memory_max_mb}MB</p>
+              <%= unless has_server_files?(server) do %>
+                <p class="text-warning mt-1">
+                  <.icon name="hero-exclamation-triangle" class="size-3 inline" /> Server files not configured
+                </p>
+              <% end %>
             </div>
 
             <div class="card-actions justify-end mt-4">
@@ -227,19 +330,109 @@ defmodule HytalixWeb.DashboardLive do
                 >
                   Delete
                 </button>
-                <button
-                  phx-click="start_server"
-                  phx-value-id={server.id}
-                  class="btn btn-sm btn-success"
-                >
-                  Start
-                </button>
+                <%= if has_server_files?(server) do %>
+                  <button
+                    phx-click="start_server"
+                    phx-value-id={server.id}
+                    class="btn btn-sm btn-success"
+                  >
+                    Start
+                  </button>
+                <% else %>
+                  <button
+                    phx-click="download_files"
+                    phx-value-id={server.id}
+                    class="btn btn-sm btn-info"
+                  >
+                    <.icon name="hero-arrow-down-tray" class="size-4" /> Download Files
+                  </button>
+                <% end %>
               <% end %>
             </div>
           </div>
         </div>
       </div>
 
+      <%!-- Download Progress Modal --%>
+      <%= if @download_server_id do %>
+        <.modal id="download-modal" show on_cancel={JS.push("close_download_modal")}>
+          <h3 class="text-lg font-bold mb-4">Downloading Server Files</h3>
+
+          <div class="space-y-4">
+            <%= case @download_status do %>
+              <% status when status in [:starting, :downloading_tool] -> %>
+                <div class="flex items-center gap-3">
+                  <span class="loading loading-spinner loading-md"></span>
+                  <p>Downloading tools...</p>
+                </div>
+
+              <% :awaiting_auth -> %>
+                <div class="alert alert-info">
+                  <.icon name="hero-key" class="size-6" />
+                  <div>
+                    <h4 class="font-bold">Authentication Required</h4>
+                    <p class="text-sm">Click the button below to authenticate with your Hytale account.</p>
+                  </div>
+                </div>
+
+                <%= if @download_auth_url do %>
+                  <a
+                    href={@download_auth_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-primary btn-block"
+                  >
+                    <.icon name="hero-arrow-top-right-on-square" class="size-4" />
+                    Open Authentication Page
+                  </a>
+                  <p class="text-xs opacity-50 text-center">
+                    After authenticating, the download will start automatically.
+                  </p>
+                <% end %>
+
+              <% :downloading -> %>
+                <div class="space-y-2">
+                  <div class="flex justify-between text-sm">
+                    <span>Downloading...</span>
+                    <span>{Float.round(@download_progress || 0, 1)}%</span>
+                  </div>
+                  <progress
+                    class="progress progress-primary w-full"
+                    value={@download_progress || 0}
+                    max="100"
+                  >
+                  </progress>
+                </div>
+
+              <% :extracting -> %>
+                <div class="flex items-center gap-3">
+                  <span class="loading loading-spinner loading-md"></span>
+                  <p>Extracting files...</p>
+                </div>
+
+              <% :error -> %>
+                <div class="alert alert-error">
+                  <.icon name="hero-x-circle" class="size-6" />
+                  <span>Download failed. Check the logs for details.</span>
+                </div>
+
+              <% _ -> %>
+                <div class="flex items-center gap-3">
+                  <span class="loading loading-spinner loading-md"></span>
+                  <p>Processing...</p>
+                </div>
+            <% end %>
+          </div>
+
+          <div class="modal-action">
+            <button type="button" phx-click="close_download_modal" class="btn btn-ghost">
+              Cancel
+            </button>
+          </div>
+        </.modal>
+      <% end %>
+
+      <%!-- Server Create/Edit Modal --%>
       <%= if @show_modal do %>
         <.modal id="server-modal" show on_cancel={JS.push("close_modal")}>
           <h3 class="text-lg font-bold mb-4">
@@ -269,6 +462,11 @@ defmodule HytalixWeb.DashboardLive do
               placeholder="/path/to/HytaleServer.jar"
             />
             <.input field={@form[:assets_path]} label="Assets Path" placeholder="/path/to/Assets.zip" />
+
+            <p class="text-xs opacity-50">
+              <.icon name="hero-information-circle" class="size-3 inline" />
+              Leave paths empty and use "Download Files" button after creating the server.
+            </p>
 
             <div class="grid grid-cols-2 gap-4">
               <.input field={@form[:memory_min_mb]} label="Min Memory (MB)" type="number" />

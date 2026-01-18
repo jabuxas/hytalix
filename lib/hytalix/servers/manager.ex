@@ -7,7 +7,7 @@ defmodule Hytalix.Servers.Manager do
   """
 
   alias Hytalix.Repo
-  alias Hytalix.Servers.{Instance, Server}
+  alias Hytalix.Servers.{Downloader, Instance, Server}
   import Ecto.Query
 
   @supervisor Hytalix.ServerSupervisor
@@ -53,9 +53,16 @@ defmodule Hytalix.Servers.Manager do
   end
 
   @doc """
-  Deletes a server configuration.
+  Deletes a server configuration and its files.
   """
   def delete_server(%Server{} = server) do
+    # Stop the server if running
+    stop_server(server.id)
+
+    # Delete server files
+    server_dir = default_download_dir(server.id)
+    if File.exists?(server_dir), do: File.rm_rf!(server_dir)
+
     Repo.delete(server)
   end
 
@@ -128,5 +135,42 @@ defmodule Hytalix.Servers.Manager do
   def list_auto_start_servers do
     from(s in Server, where: s.auto_start == true)
     |> Repo.all()
+  end
+
+  # ============================================================================
+  # Server File Downloads
+  # ============================================================================
+
+  @doc """
+  Starts downloading Hytale server files for a server.
+  Returns {:ok, pid} on success.
+  """
+  def start_download(server_id, download_dir) do
+    Downloader.start_download(server_id, download_dir)
+  end
+
+  @doc """
+  Returns the default download directory for a server.
+  """
+  def default_download_dir(server_id) do
+    Path.join([Application.app_dir(:hytalix, "priv"), "servers", "server_#{server_id}"])
+  end
+
+  @doc """
+  Detects the Java path from common locations.
+  """
+  def detect_java_path do
+    # Try common Java locations
+    paths = [
+      System.find_executable("java"),
+      Path.expand("~/.local/share/mise/installs/java/openjdk-25.0.1/bin/java"),
+      "/usr/bin/java",
+      "/usr/lib/jvm/java-25-openjdk/bin/java"
+    ]
+
+    Enum.find(paths, fn
+      nil -> false
+      path -> File.exists?(path)
+    end)
   end
 end

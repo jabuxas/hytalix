@@ -38,11 +38,11 @@ defmodule Hytalix.Servers.Server do
     timestamps()
   end
 
-  @required_fields ~w(name port server_jar_path assets_path)a
+  @required_fields ~w(name port)a
   @optional_fields ~w(
     bind_address java_path memory_min_mb memory_max_mb auth_mode view_distance
     use_aot_cache disable_sentry backup_enabled backup_dir
-    backup_frequency_minutes auto_start
+    backup_frequency_minutes auto_start server_jar_path assets_path
   )a
 
   def changeset(server, attrs) do
