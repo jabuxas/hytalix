@@ -1,7 +1,5 @@
 defmodule Hytalix.Servers.Server do
-  @moduledoc """
-  Schema for Hytale server configurations.
-  """
+  @moduledoc "Schema for Hytale server configurations."
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -11,28 +9,18 @@ defmodule Hytalix.Servers.Server do
     field :name, :string
     field :port, :integer, default: 5520
     field :bind_address, :string, default: "0.0.0.0"
-
-    # Java settings
     field :java_path, :string, default: "java"
     field :memory_min_mb, :integer, default: 1024
     field :memory_max_mb, :integer, default: 4096
-
-    # Paths
     field :server_jar_path, :string
     field :assets_path, :string
-
-    # Server options
     field :auth_mode, :string, default: "authenticated"
     field :view_distance, :integer, default: 12
     field :use_aot_cache, :boolean, default: true
     field :disable_sentry, :boolean, default: false
-
-    # Backup settings
     field :backup_enabled, :boolean, default: false
     field :backup_dir, :string
     field :backup_frequency_minutes, :integer, default: 30
-
-    # Auto-start on panel boot
     field :auto_start, :boolean, default: false
 
     timestamps()
@@ -71,25 +59,17 @@ defmodule Hytalix.Servers.Server do
     end
   end
 
-  @doc """
-  Builds the java command to start this server.
-  """
+  @doc "Builds the java command to start this server."
   def build_command(%__MODULE__{} = server) do
     java_args = [
       "-Xms#{server.memory_min_mb}m",
       "-Xmx#{server.memory_max_mb}m"
     ]
 
-    # AOT cache improves startup but must match Java version
     java_args =
       if server.use_aot_cache do
         aot_path = Path.join(Path.dirname(server.server_jar_path), "HytaleServer.aot")
-
-        if File.exists?(aot_path) do
-          java_args ++ ["-XX:AOTCache=#{aot_path}"]
-        else
-          java_args
-        end
+        if File.exists?(aot_path), do: java_args ++ ["-XX:AOTCache=#{aot_path}"], else: java_args
       else
         java_args
       end
@@ -105,31 +85,12 @@ defmodule Hytalix.Servers.Server do
       server.auth_mode
     ]
 
-    # Note: --view-distance may not be supported in all server versions
-    # Removed from command generation for now
-
-    jar_args =
-      if server.disable_sentry do
-        jar_args ++ ["--disable-sentry"]
-      else
-        jar_args
-      end
+    jar_args = if server.disable_sentry, do: jar_args ++ ["--disable-sentry"], else: jar_args
 
     jar_args =
       if server.backup_enabled do
-        backup_args = [
-          "--backup",
-          "--backup-frequency",
-          to_string(server.backup_frequency_minutes)
-        ]
-
-        backup_args =
-          if server.backup_dir do
-            backup_args ++ ["--backup-dir", server.backup_dir]
-          else
-            backup_args
-          end
-
+        backup_args = ["--backup", "--backup-frequency", to_string(server.backup_frequency_minutes)]
+        backup_args = if server.backup_dir, do: backup_args ++ ["--backup-dir", server.backup_dir], else: backup_args
         jar_args ++ backup_args
       else
         jar_args

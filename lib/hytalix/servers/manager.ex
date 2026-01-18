@@ -1,10 +1,5 @@
 defmodule Hytalix.Servers.Manager do
-  @moduledoc """
-  Facade for managing Hytale server instances.
-
-  Provides a clean API for CRUD operations on server configs and
-  starting/stopping/querying running server instances.
-  """
+  @moduledoc "Facade for managing Hytale server instances."
 
   alias Hytalix.Repo
   alias Hytalix.Servers.{Downloader, Instance, Server}
@@ -13,69 +8,34 @@ defmodule Hytalix.Servers.Manager do
   @supervisor Hytalix.ServerSupervisor
   @registry Hytalix.ServerRegistry
 
-  # ============================================================================
-  # Database CRUD
-  # ============================================================================
+  def list_all_servers, do: Repo.all(Server)
 
-  @doc """
-  Returns all server configurations.
-  """
-  def list_all_servers do
-    Repo.all(Server)
-  end
-
-  @doc """
-  Gets a server by ID. Raises if not found.
-  """
   def get_server!(id), do: Repo.get!(Server, id)
 
-  @doc """
-  Gets a server by ID. Returns nil if not found.
-  """
   def get_server(id), do: Repo.get(Server, id)
 
-  @doc """
-  Creates a new server configuration.
-  """
   def create_server(attrs \\ %{}) do
     %Server{}
     |> Server.changeset(attrs)
     |> Repo.insert()
   end
 
-  @doc """
-  Updates a server configuration.
-  """
   def update_server(%Server{} = server, attrs) do
     server
     |> Server.changeset(attrs)
     |> Repo.update()
   end
 
-  @doc """
-  Deletes a server configuration and its files.
-  """
   def delete_server(%Server{} = server) do
-    # Stop the server if running
     stop_server(server.id)
-
-    # Delete server files
     server_dir = default_download_dir(server.id)
     if File.exists?(server_dir), do: File.rm_rf!(server_dir)
-
     Repo.delete(server)
   end
 
-  @doc """
-  Returns a changeset for tracking server changes.
-  """
   def change_server(%Server{} = server, attrs \\ %{}) do
     Server.changeset(server, attrs)
   end
-
-  # ============================================================================
-  # Process Management
-  # ============================================================================
 
   @doc """
   Starts a server instance from its database config or by database ID.
@@ -137,31 +97,16 @@ defmodule Hytalix.Servers.Manager do
     |> Repo.all()
   end
 
-  # ============================================================================
-  # Server File Downloads
-  # ============================================================================
-
-  @doc """
-  Starts downloading Hytale server files for a server.
-  Returns {:ok, pid} on success.
-  """
   def start_download(server_id, download_dir) do
     Downloader.start_download(server_id, download_dir)
   end
 
-  @doc """
-  Returns the default download directory for a server.
-  """
   def default_download_dir(server_id) do
     base_dir = System.get_env("HYTALIX_DATA_DIR") || Application.app_dir(:hytalix, "priv")
     Path.join([base_dir, "servers", "server_#{server_id}"])
   end
 
-  @doc """
-  Detects the Java path from common locations.
-  """
   def detect_java_path do
-    # Try common Java locations
     paths = [
       System.find_executable("java"),
       Path.expand("~/.local/share/mise/installs/java/openjdk-25.0.1/bin/java"),
